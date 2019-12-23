@@ -73,12 +73,12 @@ inline BOOST_MP_CXX14_CONSTEXPR void resize_for_carry(cpp_int_backend<MinBits1, 
 
 const size_t karatsuba_cutoff = 4;
 
-#define D(x) std::cerr<<#x<<" is:\t"<<x<<'\n';
-#define DD(x,y) std::cerr<<'('<<#x<<','<<#y<<") are:\t"<<x<<' '<<y<<'\n';
-#define DDD(x,y,z) std::cerr<<'('<<#x<<','<<#y<<','<<#z<<") are:\t"<<x<<' '<<y<<' '<<z<<'\n';
-//#define D(x) ;
-//#define DD(x,y) ;
-//#define DDD(x,y,z) ;
+//#define D(x) std::cerr<<#x<<" is:\t"<<x<<'\n';
+//#define DD(x,y) std::cerr<<'('<<#x<<','<<#y<<") are:\t"<<x<<' '<<y<<'\n';
+//#define DDD(x,y,z) std::cerr<<'('<<#x<<','<<#y<<','<<#z<<") are:\t"<<x<<' '<<y<<' '<<z<<'\n';
+#define D(x) ;
+#define DD(x,y) ;
+#define DDD(x,y,z) ;
 
 template <unsigned MinBits1, unsigned MaxBits1, cpp_integer_type SignType1, cpp_int_check_type Checked1, class Allocator1, unsigned MinBits2, unsigned MaxBits2, cpp_integer_type SignType2, cpp_int_check_type Checked2, class Allocator2, unsigned MinBits3, unsigned MaxBits3, cpp_integer_type SignType3, cpp_int_check_type Checked3, class Allocator3>
 inline BOOST_MP_CXX14_CONSTEXPR typename enable_if_c<!is_trivial_cpp_int<cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> >::value && !is_trivial_cpp_int<cpp_int_backend<MinBits2, MaxBits2, SignType2, Checked2, Allocator2> >::value && !is_trivial_cpp_int<cpp_int_backend<MinBits3, MaxBits3, SignType3, Checked3, Allocator3> >::value>::type
@@ -101,7 +101,7 @@ eval_multiply_kara(
 
 	D("inside kara");
 
-	unsigned n = (as > bs ? as : bs) / 2;
+	unsigned n = ((as > bs ? as : bs) + 1) / 2; // n = ceil(max(as,bs)/2.0);
 	D(n);
 
 	// write a, b as a = a_h * 2^n + a_l, b = b_h * 2^n + b_l
@@ -117,15 +117,16 @@ eval_multiply_kara(
 	pl = bs > n ? (limb_type*)b.limbs() : &zero;
 	const cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> b_h(pl, n, sz);
 
-	auto print=[](auto num){
-		for(int i=num.size()-1; i>=0; --i){
-			//std::cerr<<std::bitset<64>(num.limbs()[i])<<'\n';
-			std::cerr<<"0x"<<std::hex<<num.limbs()[i]<<std::endl;
-		}
-		std::cerr<<std::endl;
-	};
-	print(a); print(a_h); print(a_l);
-	print(b); print(b_h); print(b_l);
+	//auto print=[](auto num){
+	//	for(int i=num.size()-1; i>=0; --i){
+	//		std::cerr<<std::bitset<64>(num.limbs()[i])<<'\n';
+	//		//std::cerr<<"0x"<<std::hex<<num.limbs()[i]<<std::endl;
+	//	}
+	//	std::cerr<<std::endl;
+	//};
+	auto print=[](auto num){};
+	print(a_h); print(a_l);
+	print(b_h); print(b_l);
 	
 	// x = a_h * b_h
 	// y = a_l * b_l
@@ -134,7 +135,10 @@ eval_multiply_kara(
 	// result = | a_h*b_h  | a_l*b_l |
 	// (bits)              <-- 2*n -->
 	cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> result_low(result.limbs(), 0, 2*n);
-	eval_multiply_kara(result_low, a_h, b_h, storage, offset);
+	eval_multiply_kara(result_low, a_l, b_l, storage, offset);
+
+	D("result low");
+	print(result_low);
 
 	if(result.size() > 2 * n)
 		sz = result.size() - 2 * n, pl = (limb_type*) result.limbs();
@@ -143,55 +147,94 @@ eval_multiply_kara(
 	cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> result_high(pl, 2*n, sz);
 	if(as > n && bs > n)
 		eval_multiply_kara(result_high, a_h, b_h, storage, offset);
-	//resize_for_carry(result, 2 * n + t2.size());
-	// sz = (std::max<long long int>)(0, static_cast<long long int>((std::min)(result.size(), 2 * n + t2.size())) - static_cast<long long int>(2 * n));
 
+	D("result_high");
+	print(result_high);
+
+	D("result\n");
+	print(result);
+
+	sz = n + 1;
 	// create a temporary storage
-	cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> t1(storage, offset + 0 * n, n + 1);
-	cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> t2(storage, offset + 1 * n + 1, n + 1);
-	cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> t3(storage, offset + 2 * n + 2, 2 * n + 2);
+	cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> t1(storage, offset + 0 * sz, sz);
+	cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> t2(storage, offset + sz, sz);
+	cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> t3(storage, offset + 2 * sz, 2 * sz);
 	
 	eval_add(t1, a_l, a_h);
+	D("checking t1 = a_l + a_h");
+	print(a_l);
+	print(a_h);
+	print(t1);
 	eval_add(t2, b_l, b_h);
-	eval_multiply_kara(t3, t1, t2, storage, offset + 4 * n + 4); // t2 = (a_h+a_l)*(b_h+b_l)
+	D("checking t2 = b_l + b_h");
+	print(b_l);
+	print(b_h);
+	print(t2);
 
+	D("checking t3 = t1 + t2");
+	// t3 = (a_h+a_l)*(b_h+b_l)
+	eval_multiply_kara(t3, t1, t2, storage, offset + 4 * sz);
+	print(t1);
+	print(t2);
+	print(t3);
+
+	D("checking t1 = result_low + result_high");
+	print(result_low);
+	print(result_high);
 	eval_add(t1, result_high, result_low);
+	print(t1);
+
 	unsigned i, lim;
 	double_limb_type next = 0;
-	// t3 -= t1
-	auto t3p = t3.limbs(), t1p = t1.limbs();
-	for(i=0, lim = t1.size(); i < lim; ++i)
-	{
-		next = *t3p - next - *t1p;
-		*t3p = static_cast<limb_type>(next);
-		next = (next >> cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::limb_bits) & 1u;
-		++t3p, ++t1p;
-	}
-	lim = t3.size();
-	while(next && i < lim){
-		next = *t3p - next;	
-		*t3p = static_cast<limb_type>(next);
-		next = (next >> cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::limb_bits) & 1u;
-		++t3p, ++t1p;
-	}
+	//D("t3 -= t1");
+	//print(t3);
+	//print(t1);
+	//// t3 -= t1
+	//limb_type* t3p = t3.limbs(), t1p = t1.limbs();
+	//for(i=0, lim = t1.size(); i < lim; ++i)
+	//{
+	//	next = *t3p - next - *t1p;
+	//	*t3p = static_cast<limb_type>(next);
+	//	next = (next >> cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::limb_bits) & 1u;
+	//	++t3p, ++t1p;
+	//}
+	//lim = t3.size();
+	//while(next && i < lim){
+	//	next = *t3p - next;	
+	//	*t3p = static_cast<limb_type>(next);
+	//	next = (next >> cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::limb_bits) & 1u;
+	//	++t3p; ++i;
+	//}
+	//print(t3);	
+	subtract_unsigned(t3, t3, t1);
+
+	//DD("result += t3 << n", n);
+	//print(result);
+	//print(t3);
+	//// result = | result_high | result_low |
+	////                  |<-- t3 -->|<- n ->|
+	//limb_type *rp  = result.limbs() + n,
+	//		  *t3p = t3.limbs();
+	//next = 0;
+	//for(i = 0, lim = (std::min)(t3.size(), result.size() - n), next = 0; i < lim; ++i)
+	//{
+	//	next = next + *rp + *t3p;
+	//	*rp  = static_cast<limb_type>(next);
+	//	next >>= cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::limb_bits;
+	//	++t3p, ++rp;
+	//}
+	//lim = result.size() - n;
+	//while(next && i < lim)
+	//{
+	//	next += *rp;
+	//	*rp = static_cast<limb_type>(next);
+	//	next >>= cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::limb_bits;
+	//	++rp; ++i;
+	//}
+	//print(result);
+	cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> result_mid(result.limbs(), n, result.size() - n);
+	add_unsigned(result_mid, result_mid, t3);
 	
-	// result = | result_high | result_low |
-	//                  |<-- t3 -->|<- n ->|
-	t3p = t3.limbs();
-	auto rp = result.limbs() + n;
-	for(i = 0, lim = (std::min)(t3.size(), result.size() - n), next = 0; i < lim; ++i)
-	{
-		next = next + *rp + *t3p;
-		*rp  = static_cast<limb_type>(next);
-		next >>= cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::limb_bits;
-	}
-	lim = result.size() - n;
-	while(next && i < lim)
-	{
-		next += *rp;
-		*rp = static_cast<limb_type>(next);
-		next >>= cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::limb_bits;
-	}
 	result.normalize();
 	result.sign(a.sign() != b.sign());
 	return ;
