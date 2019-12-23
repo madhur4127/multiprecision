@@ -71,7 +71,14 @@ inline BOOST_MP_CXX14_CONSTEXPR void resize_for_carry(cpp_int_backend<MinBits1, 
       result.resize(required, required);
 }
 
-const int karatsuba_cutoff = 80;
+const size_t karatsuba_cutoff = 80;
+
+//#define D(x) std::cerr<<#x<<" is:\t"<<x<<'\n';
+//#define DD(x,y) std::cerr<<'('<<#x<<','<<#y<<") are:\t"<<x<<' '<<y<<'\n';
+//#define DDD(x,y,z) std::cerr<<'('<<#x<<','<<#y<<','<<#z<<") are:\t"<<x<<' '<<y<<' '<<z<<'\n';
+#define D(x) ;
+#define DD(x,y) ;
+#define DDD(x,y,z) ;
 
 template <unsigned MinBits1, unsigned MaxBits1, cpp_integer_type SignType1, cpp_int_check_type Checked1, class Allocator1, unsigned MinBits2, unsigned MaxBits2, cpp_integer_type SignType2, cpp_int_check_type Checked2, class Allocator2, unsigned MinBits3, unsigned MaxBits3, cpp_integer_type SignType3, cpp_int_check_type Checked3, class Allocator3>
 inline BOOST_MP_CXX14_CONSTEXPR typename enable_if_c<!is_trivial_cpp_int<cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> >::value && !is_trivial_cpp_int<cpp_int_backend<MinBits2, MaxBits2, SignType2, Checked2, Allocator2> >::value && !is_trivial_cpp_int<cpp_int_backend<MinBits3, MaxBits3, SignType3, Checked3, Allocator3> >::value>::type
@@ -83,18 +90,25 @@ eval_multiply_kara(
 	unsigned offset = 0) BOOST_MP_NOEXCEPT_IF((is_non_throwing_cpp_int<cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> >::value))
 {
 	unsigned as = a.size(), bs = b.size(), rs = as + bs;
+	DDD(as, bs, result.size());
 	if (as < karatsuba_cutoff || bs < karatsuba_cutoff)
+	{
 		eval_multiply(result, a, b);
+		return ;
+	}
 	else if (result.size() < rs)
 		return ; // must be the case of fixed precision when result cannot be stored in given precision
 
+	D("inside kara");
+
 	unsigned n = (as > bs ? as : bs) / 2;
+	D(n);
 
 	// write a, b as a = a_h * 2^n + a_l, b = b_h * 2^n + b_l
 	unsigned sz = (std::min)(as, n);
-	const cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> a_l((limb_type*)a.limbs(), 0, sz);
+	const cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> a_l(a.limbs(), 0, sz);
 	sz = (std::min)(bs, n);
-	const cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> b_l((limb_type*)b.limbs(), 0, sz);
+	const cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> b_l(b.limbs(), 0, sz);
 	limb_type zero = 0;
 	sz = as > n ? as - n : 1;
 	limb_type* pl = as > n ? (limb_type*)a.limbs() : &zero;
@@ -103,6 +117,16 @@ eval_multiply_kara(
 	pl = bs > n ? (limb_type*)b.limbs() : &zero;
 	const cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> b_h(pl, n, sz);
 
+	auto print=[](auto num){
+		for(int i=num.size()-1; i>=0; --i){
+			//std::cerr<<std::bitset<64>(num.limbs()[i])<<'\n';
+			std::cerr<<"0x"<<std::hex<<num.limbs()[i]<<std::endl;
+		}
+		std::cerr<<std::endl;
+	};
+	//print(a); print(a_h); print(a_l);
+	//print(b); print(b_h); print(b_l);
+	
 	// x = a_h * b_h
 	// y = a_l * b_l
 	// z = (a_h + a_l) * (b_h + b_l) - x - y
@@ -229,11 +253,9 @@ eval_multiply(
 #ifdef BOOST_NO_CXX14_CONSTEXPR
    static const double_limb_type limb_max = ~static_cast<limb_type>(0u);
    static const double_limb_type double_limb_max = ~static_cast<double_limb_type>(0u);
-   static const unsigned limb_bits = sizeof(limb_type) * CHAR_BIT;
 #else
    constexpr const double_limb_type limb_max = ~static_cast<limb_type>(0u);
    constexpr const double_limb_type double_limb_max = ~static_cast<double_limb_type>(0u);
-   constexpr const unsigned limb_bits = sizeof(limb_type) * CHAR_BIT;
 #endif
    result.resize(as + bs, as + bs - 1);
    typename cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::limb_pointer pr = result.limbs();
@@ -249,8 +271,9 @@ eval_multiply(
 #endif
    std::memset(pr, 0, result.size() * sizeof(limb_type));
 
+   D("inside mul");
    if (as >= karatsuba_cutoff && bs >= karatsuba_cutoff){
-	   typename cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::scoped_shared_storage storage(result, 8 * (as + bs));
+	   typename cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::scoped_shared_storage storage(result, 20 * (as + bs));
 	   eval_multiply_kara(result, a, b, storage, 0);
 	   return ;
    }
