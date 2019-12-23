@@ -17,6 +17,8 @@
 
 #include <boost/multiprecision/cpp_int.hpp>
 
+const unsigned DIGITS = 8192 * 2;
+
 class random_pcg32_fast_base
 {
 protected:
@@ -175,14 +177,13 @@ void get_random_big_uint(RandomEngineType& rng, UnsignedIntegralIteratorType it_
 
   using local_uint_type = typename std::iterator_traits<UnsignedIntegralIteratorType>::value_type;
 
-  constexpr std::size_t digits_of_uint___type = static_cast<std::size_t>(std::numeric_limits<local_uint_type>::digits);
   constexpr std::size_t digits_of_random_type = static_cast<std::size_t>(std::numeric_limits<local_random_value_type>::digits);
 
   local_random_value_type next_random = rng();
 
   *it_out = next_random;
 
-  for(std::size_t i = digits_of_random_type; i < digits_of_uint___type; i += digits_of_random_type)
+  for(std::size_t i = digits_of_random_type; i < DIGITS; i += digits_of_random_type)
   {
     (*it_out) <<= digits_of_random_type;
 
@@ -192,10 +193,7 @@ void get_random_big_uint(RandomEngineType& rng, UnsignedIntegralIteratorType it_
   }
 }
 
-using big_uint_backend_type =
-  boost::multiprecision::cpp_int_backend<8192UL << 1U,
-                                         8192UL << 1U,
-                                         boost::multiprecision::unsigned_magnitude>;
+using big_uint_backend_type = boost::multiprecision::cpp_int_backend<DIGITS/2, DIGITS>;
 
 using big_uint_type = boost::multiprecision::number<big_uint_backend_type>;
 
