@@ -172,6 +172,7 @@ eval_multiply_kara(
 	result.sign(a.sign() != b.sign());
 	return ;
 }
+
 template <unsigned MinBits1, unsigned MaxBits1, cpp_integer_type SignType1, cpp_int_check_type Checked1, class Allocator1, unsigned MinBits2, unsigned MaxBits2, cpp_integer_type SignType2, cpp_int_check_type Checked2, class Allocator2, unsigned MinBits3, unsigned MaxBits3, cpp_integer_type SignType3, cpp_int_check_type Checked3, class Allocator3>
 inline BOOST_MP_CXX14_CONSTEXPR typename enable_if_c<!is_trivial_cpp_int<cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> >::value && !is_trivial_cpp_int<cpp_int_backend<MinBits2, MaxBits2, SignType2, Checked2, Allocator2> >::value && !is_trivial_cpp_int<cpp_int_backend<MinBits3, MaxBits3, SignType3, Checked3, Allocator3> >::value>::type
 eval_multiply(
@@ -179,10 +180,10 @@ eval_multiply(
     const cpp_int_backend<MinBits2, MaxBits2, SignType2, Checked2, Allocator2>& a,
     const cpp_int_backend<MinBits3, MaxBits3, SignType3, Checked3, Allocator3>& b) BOOST_MP_NOEXCEPT_IF((is_non_throwing_cpp_int<cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> >::value))
 {
-   // Very simple long multiplication, only usable for small numbers of limb_type's
-   // but that's the typical use case for this type anyway:
+   // Uses simple (O(n^2)) multiplication when the limbs are less
+   // otherwise switches to karatsuba algorithm based on experimental value (~100 limbs)
    //
-   // Special cases first:
+   // Trivial cases first:
    //
    unsigned                                                                                          as = a.size();
    unsigned                                                                                          bs = b.size();
@@ -225,19 +226,19 @@ eval_multiply(
       return;
    }
 
-   result.resize(as + bs, as + bs - 1);
-
-   typename cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::limb_pointer pr = result.limbs();
 #ifdef BOOST_NO_CXX14_CONSTEXPR
-   static const double_limb_type limb_max        = ~static_cast<limb_type>(0u);
+   static const double_limb_type limb_max = ~static_cast<limb_type>(0u);
    static const double_limb_type double_limb_max = ~static_cast<double_limb_type>(0u);
+   static const unsigned limb_bits = sizeof(limb_type) * CHAR_BIT;
 #else
    constexpr const double_limb_type limb_max = ~static_cast<limb_type>(0u);
    constexpr const double_limb_type double_limb_max = ~static_cast<double_limb_type>(0u);
+   constexpr const unsigned limb_bits = sizeof(limb_type) * CHAR_BIT;
 #endif
+   result.resize(as + bs, as + bs - 1);
+   typename cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::limb_pointer pr = result.limbs();
    BOOST_STATIC_ASSERT(double_limb_max - 2 * limb_max >= limb_max * limb_max);
 
-   double_limb_type carry = 0;
 #ifndef BOOST_MP_NO_CONSTEXPR_DETECTION
    if (BOOST_MP_IS_CONST_EVALUATED(as))
    {
@@ -254,6 +255,7 @@ eval_multiply(
 	   return ;
    }
 
+   double_limb_type carry = 0;
    for (unsigned i = 0; i < as; ++i)
    {
       unsigned inner_limit = cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::variable ? bs : (std::min)(result.size() - i, bs);
