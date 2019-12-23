@@ -71,14 +71,14 @@ inline BOOST_MP_CXX14_CONSTEXPR void resize_for_carry(cpp_int_backend<MinBits1, 
       result.resize(required, required);
 }
 
-const size_t karatsuba_cutoff = 80;
+const size_t karatsuba_cutoff = 4;
 
-//#define D(x) std::cerr<<#x<<" is:\t"<<x<<'\n';
-//#define DD(x,y) std::cerr<<'('<<#x<<','<<#y<<") are:\t"<<x<<' '<<y<<'\n';
-//#define DDD(x,y,z) std::cerr<<'('<<#x<<','<<#y<<','<<#z<<") are:\t"<<x<<' '<<y<<' '<<z<<'\n';
-#define D(x) ;
-#define DD(x,y) ;
-#define DDD(x,y,z) ;
+#define D(x) std::cerr<<#x<<" is:\t"<<x<<'\n';
+#define DD(x,y) std::cerr<<'('<<#x<<','<<#y<<") are:\t"<<x<<' '<<y<<'\n';
+#define DDD(x,y,z) std::cerr<<'('<<#x<<','<<#y<<','<<#z<<") are:\t"<<x<<' '<<y<<' '<<z<<'\n';
+//#define D(x) ;
+//#define DD(x,y) ;
+//#define DDD(x,y,z) ;
 
 template <unsigned MinBits1, unsigned MaxBits1, cpp_integer_type SignType1, cpp_int_check_type Checked1, class Allocator1, unsigned MinBits2, unsigned MaxBits2, cpp_integer_type SignType2, cpp_int_check_type Checked2, class Allocator2, unsigned MinBits3, unsigned MaxBits3, cpp_integer_type SignType3, cpp_int_check_type Checked3, class Allocator3>
 inline BOOST_MP_CXX14_CONSTEXPR typename enable_if_c<!is_trivial_cpp_int<cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> >::value && !is_trivial_cpp_int<cpp_int_backend<MinBits2, MaxBits2, SignType2, Checked2, Allocator2> >::value && !is_trivial_cpp_int<cpp_int_backend<MinBits3, MaxBits3, SignType3, Checked3, Allocator3> >::value>::type
@@ -124,8 +124,8 @@ eval_multiply_kara(
 		}
 		std::cerr<<std::endl;
 	};
-	//print(a); print(a_h); print(a_l);
-	//print(b); print(b_h); print(b_l);
+	print(a); print(a_h); print(a_l);
+	print(b); print(b_h); print(b_l);
 	
 	// x = a_h * b_h
 	// y = a_l * b_l
@@ -133,7 +133,7 @@ eval_multiply_kara(
 	// a * b = x * (2 ^ (2 * n)) + z * (2 ^ n) + y
 	// result = | a_h*b_h  | a_l*b_l |
 	// (bits)              <-- 2*n -->
-	cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> result_low((limb_type*)result.limbs(), 0, 2*n);
+	cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> result_low(result.limbs(), 0, 2*n);
 	eval_multiply_kara(result_low, a_h, b_h, storage, offset);
 
 	if(result.size() > 2 * n)
@@ -142,7 +142,7 @@ eval_multiply_kara(
 		sz = 1, pl = &zero;
 	cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> result_high(pl, 2*n, sz);
 	if(as > n && bs > n)
-	eval_multiply_kara(result_high, a_h, b_h, storage, offset);
+		eval_multiply_kara(result_high, a_h, b_h, storage, offset);
 	//resize_for_carry(result, 2 * n + t2.size());
 	// sz = (std::max<long long int>)(0, static_cast<long long int>((std::min)(result.size(), 2 * n + t2.size())) - static_cast<long long int>(2 * n));
 
